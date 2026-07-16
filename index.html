@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta
+    name="description"
+    content="인박스, 프로젝트, 반복 할 일, 주간 일정과 완료 통계를 관리하는 개인용 LifeOS"
+  />
+  <title>LifeOS v8</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="app-header">
+      <div>
+        <p class="eyebrow">PERSONAL WORKSPACE</p>
+        <h1>LifeOS</h1>
+        <p class="subtitle">저장하고, 분류하고, 이번 주의 일을 끝내세요.</p>
+      </div>
+
+      <div class="header-actions">
+        <button id="exportButton" class="button button-secondary" type="button">내보내기</button>
+        <label class="button button-secondary file-button">
+          가져오기
+          <input id="importInput" type="file" accept="application/json" hidden />
+        </label>
+      </div>
+    </header>
+
+    <nav class="view-nav" aria-label="주요 화면">
+      <button class="view-button is-active" type="button" data-view="inbox">인박스</button>
+      <button class="view-button" type="button" data-view="today">
+        오늘 <span id="todayNavCount" class="nav-count">0</span>
+      </button>
+      <button class="view-button" type="button" data-view="projects">프로젝트</button>
+      <button class="view-button" type="button" data-view="week">주간</button>
+      <button class="view-button" type="button" data-view="stats">통계</button>
+    </nav>
+
+    <main>
+      <section class="app-view is-active" data-view-panel="inbox">
+        <section class="summary-grid" aria-label="인박스 요약">
+          <article class="summary-card"><span>전체</span><strong id="totalCount">0</strong></article>
+          <article class="summary-card"><span>미완료 할 일</span><strong id="todoCount">0</strong></article>
+          <article class="summary-card"><span>오늘 마감</span><strong id="todayCount">0</strong></article>
+          <article class="summary-card summary-card-danger"><span>기한 초과</span><strong id="overdueCount">0</strong></article>
+          <article class="summary-card"><span>프로젝트</span><strong id="projectCount">0</strong></article>
+        </section>
+
+        <section class="panel composer-panel" aria-labelledby="composerTitle">
+          <div class="panel-heading">
+            <div>
+              <p class="section-label">QUICK CAPTURE</p>
+              <h2 id="composerTitle">빠른 저장</h2>
+            </div>
+            <span class="keyboard-hint">Ctrl / Cmd + Enter</span>
+          </div>
+
+          <form id="itemForm" class="composer-form">
+            <div class="composer-options">
+              <label>
+                <span>종류</span>
+                <select id="itemType">
+                  <option value="todo">할 일</option>
+                  <option value="note">메모</option>
+                  <option value="link">링크</option>
+                  <option value="prompt">프롬프트</option>
+                </select>
+              </label>
+
+              <label>
+                <span>프로젝트</span>
+                <select id="itemProject">
+                  <option value="">프로젝트 없음</option>
+                </select>
+              </label>
+
+              <label>
+                <span>우선순위</span>
+                <select id="itemPriority">
+                  <option value="normal">보통</option>
+                  <option value="high">높음</option>
+                  <option value="low">낮음</option>
+                </select>
+              </label>
+
+              <label>
+                <span>마감일</span>
+                <input id="itemDueDate" type="date" />
+              </label>
+
+              <label>
+                <span>반복</span>
+                <select id="itemRecurrence">
+                  <option value="none">반복 없음</option>
+                  <option value="daily">매일</option>
+                  <option value="weekly">매주</option>
+                  <option value="monthly">매월</option>
+                </select>
+              </label>
+
+              <label class="wide-field">
+                <span>태그</span>
+                <input id="itemTags" type="text" placeholder="학교, 개발, 포트폴리오" />
+              </label>
+            </div>
+
+            <label class="sr-only" for="itemContent">내용</label>
+            <textarea
+              id="itemContent"
+              rows="4"
+              placeholder="예: 포트폴리오 최종 검수하기"
+              required
+            ></textarea>
+
+            <div class="composer-actions">
+              <p class="helper-text">
+                반복 할 일을 완료하면 다음 일정이 자동 생성됩니다.
+              </p>
+              <button class="button button-primary" type="submit">저장</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel inbox-panel" aria-labelledby="inboxTitle">
+          <div class="panel-heading inbox-heading">
+            <div>
+              <p class="section-label">INBOX</p>
+              <h2 id="inboxTitle">저장된 항목</h2>
+            </div>
+
+            <div class="toolbar">
+              <label>
+                <span class="sr-only">프로젝트 필터</span>
+                <select id="projectFilterSelect">
+                  <option value="all">모든 프로젝트</option>
+                </select>
+              </label>
+
+              <label>
+                <span class="sr-only">태그 필터</span>
+                <select id="tagFilterSelect">
+                  <option value="all">모든 태그</option>
+                </select>
+              </label>
+
+              <label>
+                <span class="sr-only">정렬</span>
+                <select id="sortSelect">
+                  <option value="smart">스마트 정렬</option>
+                  <option value="newest">최근 등록순</option>
+                  <option value="due">마감일순</option>
+                  <option value="priority">우선순위순</option>
+                </select>
+              </label>
+
+              <div class="search-wrap">
+                <label class="sr-only" for="searchInput">검색</label>
+                <input id="searchInput" type="search" placeholder="내용·태그 검색" />
+              </div>
+            </div>
+          </div>
+
+          <div id="filterTabs" class="filter-tabs" role="tablist" aria-label="항목 필터">
+            <button class="filter-tab is-active" type="button" data-filter="all">전체</button>
+            <button class="filter-tab" type="button" data-filter="today">오늘</button>
+            <button class="filter-tab filter-tab-danger" type="button" data-filter="overdue">기한 초과</button>
+            <button class="filter-tab" type="button" data-filter="todo">할 일</button>
+            <button class="filter-tab" type="button" data-filter="note">메모</button>
+            <button class="filter-tab" type="button" data-filter="link">링크</button>
+            <button class="filter-tab" type="button" data-filter="prompt">프롬프트</button>
+            <button class="filter-tab" type="button" data-filter="completed">완료</button>
+          </div>
+
+          <div id="emptyState" class="empty-state">
+            <div class="empty-icon">+</div>
+            <h3>아직 저장된 항목이 없습니다.</h3>
+            <p>위 입력창에 첫 항목을 추가해 보세요.</p>
+          </div>
+
+          <ul id="itemList" class="item-list" aria-live="polite"></ul>
+        </section>
+      </section>
+
+      <section class="app-view" data-view-panel="today">
+        <section class="today-hero panel">
+          <div>
+            <p class="section-label">TODAY</p>
+            <h2>오늘 할 일</h2>
+            <p id="todayDateText" class="muted-text"></p>
+          </div>
+          <div class="today-progress">
+            <strong id="todayProgressText">0 / 0</strong>
+            <span>오늘 완료</span>
+          </div>
+        </section>
+
+        <section class="today-columns">
+          <article class="panel today-section">
+            <div class="section-heading">
+              <div><p class="section-label section-label-danger">OVERDUE</p><h2>기한이 지난 일</h2></div>
+              <span id="todayOverdueCount" class="section-count">0</span>
+            </div>
+            <div id="todayOverdueEmpty" class="section-empty">기한이 지난 할 일이 없습니다.</div>
+            <ul id="todayOverdueList" class="item-list compact-list"></ul>
+          </article>
+
+          <article class="panel today-section">
+            <div class="section-heading">
+              <div><p class="section-label">DUE TODAY</p><h2>오늘 마감</h2></div>
+              <span id="todayDueCount" class="section-count">0</span>
+            </div>
+            <div id="todayDueEmpty" class="section-empty">오늘 마감인 할 일이 없습니다.</div>
+            <ul id="todayDueList" class="item-list compact-list"></ul>
+          </article>
+        </section>
+
+        <section class="panel today-section">
+          <div class="section-heading">
+            <div><p class="section-label">FOCUS</p><h2>마감일 없는 중요 할 일</h2></div>
+            <span id="todayFocusCount" class="section-count">0</span>
+          </div>
+          <p class="section-description">우선순위가 높거나 고정된 할 일입니다.</p>
+          <div id="todayFocusEmpty" class="section-empty">집중할 할 일이 없습니다.</div>
+          <ul id="todayFocusList" class="item-list compact-list"></ul>
+        </section>
+      </section>
+
+      <section class="app-view" data-view-panel="projects">
+        <section class="panel project-manager">
+          <div class="panel-heading">
+            <div>
+              <p class="section-label">PROJECTS</p>
+              <h2>프로젝트 관리</h2>
+            </div>
+
+            <form id="projectForm" class="project-form">
+              <input id="projectNameInput" type="text" maxlength="40" placeholder="새 프로젝트 이름" required />
+              <button class="button button-primary" type="submit">프로젝트 추가</button>
+            </form>
+          </div>
+
+          <div id="projectEmpty" class="section-empty">아직 프로젝트가 없습니다.</div>
+          <div id="projectGrid" class="project-grid"></div>
+        </section>
+      </section>
+
+      <section class="app-view" data-view-panel="week">
+        <section class="panel week-panel">
+          <div class="week-toolbar">
+            <div>
+              <p class="section-label">WEEKLY PLAN</p>
+              <h2 id="weekRangeText">이번 주</h2>
+            </div>
+
+            <div class="week-actions">
+              <button id="previousWeekButton" class="button button-secondary" type="button">이전 주</button>
+              <button id="currentWeekButton" class="button button-secondary" type="button">이번 주</button>
+              <button id="nextWeekButton" class="button button-secondary" type="button">다음 주</button>
+            </div>
+          </div>
+
+          <p class="section-description">
+            할 일을 다른 날짜 칸으로 드래그하면 마감일이 이동합니다.
+          </p>
+
+          <div id="weekBoard" class="week-board"></div>
+
+          <div id="unscheduledDropZone" class="unscheduled-zone" data-drop-date="">
+            <strong>마감일 없음으로 이동</strong>
+            <span>작업을 이 영역에 놓으면 마감일이 제거됩니다.</span>
+          </div>
+        </section>
+      </section>
+
+      <section class="app-view" data-view-panel="stats">
+        <section class="stats-grid">
+          <article class="summary-card"><span>최근 7일 완료</span><strong id="completed7Count">0</strong></article>
+          <article class="summary-card"><span>최근 30일 완료</span><strong id="completed30Count">0</strong></article>
+          <article class="summary-card"><span>전체 완료 기록</span><strong id="completedAllCount">0</strong></article>
+          <article class="summary-card"><span>현재 완료율</span><strong id="completionRateText">0%</strong></article>
+        </section>
+
+        <section class="stats-columns">
+          <article class="panel stats-panel">
+            <div class="section-heading">
+              <div><p class="section-label">LAST 7 DAYS</p><h2>일별 완료 수</h2></div>
+            </div>
+            <div id="weeklyBars" class="bar-chart"></div>
+          </article>
+
+          <article class="panel stats-panel">
+            <div class="section-heading">
+              <div><p class="section-label">BY PROJECT</p><h2>프로젝트별 진행률</h2></div>
+            </div>
+            <div id="projectStatsEmpty" class="section-empty">프로젝트 데이터가 없습니다.</div>
+            <div id="projectStatsList" class="project-stats-list"></div>
+          </article>
+        </section>
+
+        <section class="panel stats-panel">
+          <div class="section-heading">
+            <div><p class="section-label">HISTORY</p><h2>최근 완료 기록</h2></div>
+          </div>
+          <div id="completionHistoryEmpty" class="section-empty">완료 기록이 없습니다.</div>
+          <ul id="completionHistoryList" class="history-list"></ul>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="editDialog" class="edit-dialog">
+    <form id="editForm" method="dialog">
+      <div class="dialog-heading">
+        <div><p class="section-label">EDIT ITEM</p><h2>항목 수정</h2></div>
+        <button id="closeDialogButton" class="icon-button" type="button" aria-label="닫기">×</button>
+      </div>
+
+      <div class="dialog-grid">
+        <label><span>종류</span><select id="editType">
+          <option value="todo">할 일</option>
+          <option value="note">메모</option>
+          <option value="link">링크</option>
+          <option value="prompt">프롬프트</option>
+        </select></label>
+
+        <label><span>프로젝트</span><select id="editProject"><option value="">프로젝트 없음</option></select></label>
+
+        <label><span>우선순위</span><select id="editPriority">
+          <option value="normal">보통</option>
+          <option value="high">높음</option>
+          <option value="low">낮음</option>
+        </select></label>
+
+        <label><span>마감일</span><input id="editDueDate" type="date" /></label>
+
+        <label><span>반복</span><select id="editRecurrence">
+          <option value="none">반복 없음</option>
+          <option value="daily">매일</option>
+          <option value="weekly">매주</option>
+          <option value="monthly">매월</option>
+        </select></label>
+
+        <label class="wide-field"><span>태그</span><input id="editTags" type="text" placeholder="학교, 개발" /></label>
+      </div>
+
+      <label><span>내용</span><textarea id="editContent" rows="7" required></textarea></label>
+
+      <div class="dialog-actions">
+        <button id="cancelEditButton" class="button button-secondary" type="button">취소</button>
+        <button class="button button-primary" type="submit">수정 저장</button>
+      </div>
+    </form>
+  </dialog>
+
+  <template id="itemTemplate">
+    <li class="inbox-item">
+      <div class="item-check-wrap">
+        <button class="check-button" type="button" aria-label="완료 상태 변경"></button>
+      </div>
+
+      <div class="item-main">
+        <div class="item-meta">
+          <span class="type-badge"></span>
+          <span class="project-badge"></span>
+          <span class="priority-badge"></span>
+          <span class="recurrence-badge"></span>
+          <span class="due-badge"></span>
+          <time class="item-time"></time>
+        </div>
+        <div class="item-content"></div>
+        <div class="item-tags"></div>
+      </div>
+
+      <div class="item-actions">
+        <button class="icon-button today-button" type="button">오늘</button>
+        <button class="icon-button pin-button" type="button">☆</button>
+        <button class="icon-button edit-button" type="button">수정</button>
+        <button class="icon-button delete-button" type="button">삭제</button>
+      </div>
+    </li>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>
