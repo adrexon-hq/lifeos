@@ -1,6 +1,7 @@
 const ITEM_STORAGE_KEY = "lifeos-inbox-items-v1";
 const PROJECT_STORAGE_KEY = "lifeos-projects-v1";
 const COMPLETION_STORAGE_KEY = "lifeos-completions-v1";
+const THEME_STORAGE_KEY = "lifeos-theme-v1";
 
 const TYPE_LABELS = {
   todo: "할 일",
@@ -32,7 +33,7 @@ const state = {
   items: loadItems(),
   projects: loadProjects(),
   completions: loadCompletions(),
-  activeView: "inbox",
+  activeView: "home",
   activeFilter: "all",
   activeTag: "all",
   activeProject: "all",
@@ -48,6 +49,18 @@ const elements = {
   viewNav: document.querySelector(".view-nav"),
   viewButtons: document.querySelectorAll("[data-view]"),
   viewPanels: document.querySelectorAll("[data-view-panel]"),
+  goViewButtons: document.querySelectorAll("[data-go-view]"),
+
+  homeDateText: document.querySelector("#homeDateText"),
+  homeTaskList: document.querySelector("#homeTaskList"),
+  homeTaskEmpty: document.querySelector("#homeTaskEmpty"),
+  homeProjectList: document.querySelector("#homeProjectList"),
+  homeProjectEmpty: document.querySelector("#homeProjectEmpty"),
+  homeWeekPreview: document.querySelector("#homeWeekPreview"),
+
+  themeToggleButton: document.querySelector("#themeToggleButton"),
+  themeToggleIcon: document.querySelector("#themeToggleIcon"),
+  themeToggleLabel: document.querySelector("#themeToggleLabel"),
 
   itemForm: document.querySelector("#itemForm"),
   itemType: document.querySelector("#itemType"),
@@ -108,9 +121,6 @@ const elements = {
   completionHistoryList: document.querySelector("#completionHistoryList"),
   completionHistoryEmpty: document.querySelector("#completionHistoryEmpty"),
 
-  exportButton: document.querySelector("#exportButton"),
-  importInput: document.querySelector("#importInput"),
-
   editDialog: document.querySelector("#editDialog"),
   editForm: document.querySelector("#editForm"),
   editType: document.querySelector("#editType"),
@@ -125,6 +135,7 @@ const elements = {
 };
 
 elements.viewNav.addEventListener("click", handleViewChange);
+document.addEventListener("click", handleGoViewClick);
 elements.itemForm.addEventListener("submit", handleCreateItem);
 elements.filterTabs.addEventListener("click", handleFilterChange);
 elements.projectFilterSelect.addEventListener("change", handleProjectFilterChange);
@@ -132,8 +143,13 @@ elements.tagFilterSelect.addEventListener("change", handleTagFilterChange);
 elements.searchInput.addEventListener("input", handleSearch);
 elements.sortSelect.addEventListener("change", handleSortChange);
 
-[elements.itemList, elements.todayOverdueList, elements.todayDueList, elements.todayFocusList]
-  .forEach((list) => list.addEventListener("click", handleListAction));
+[
+  elements.itemList,
+  elements.todayOverdueList,
+  elements.todayDueList,
+  elements.todayFocusList,
+  elements.homeTaskList,
+].forEach((list) => list.addEventListener("click", handleListAction));
 
 elements.projectForm.addEventListener("submit", handleCreateProject);
 elements.projectGrid.addEventListener("click", handleProjectAction);
@@ -154,8 +170,7 @@ elements.unscheduledDropZone.addEventListener("dragover", handleWeekDragOver);
 elements.unscheduledDropZone.addEventListener("dragleave", handleWeekDragLeave);
 elements.unscheduledDropZone.addEventListener("drop", handleWeekDrop);
 
-elements.exportButton.addEventListener("click", exportData);
-elements.importInput.addEventListener("change", importData);
+elements.themeToggleButton.addEventListener("click", toggleTheme);
 elements.editForm.addEventListener("submit", handleEditSubmit);
 elements.closeDialogButton.addEventListener("click", closeEditDialog);
 elements.cancelEditButton.addEventListener("click", closeEditDialog);
@@ -170,7 +185,39 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
+applyTheme(loadTheme());
 render();
+
+
+function loadTheme() {
+  const stored = localStorage.getItem(THEME_STORAGE_KEY);
+  return stored === "dark" ? "dark" : "light";
+}
+
+function applyTheme(theme) {
+  const isDark = theme === "dark";
+
+  document.documentElement.dataset.theme = isDark ? "dark" : "light";
+  localStorage.setItem(THEME_STORAGE_KEY, isDark ? "dark" : "light");
+
+  if (elements.themeToggleButton) {
+    elements.themeToggleButton.setAttribute("aria-pressed", String(isDark));
+  }
+
+  if (elements.themeToggleIcon) {
+    elements.themeToggleIcon.textContent = isDark ? "☀" : "☾";
+  }
+
+  if (elements.themeToggleLabel) {
+    elements.themeToggleLabel.textContent = isDark ? "화이트 모드" : "블랙 모드";
+  }
+}
+
+function toggleTheme() {
+  const current = document.documentElement.dataset.theme;
+  applyTheme(current === "dark" ? "light" : "dark");
+}
+
 
 function loadItems() {
   try {
@@ -311,6 +358,20 @@ function handleViewChange(event) {
   setActiveView(button.dataset.view);
 }
 
+function handleGoViewClick(event) {
+  const button = event.target.closest("[data-go-view]");
+  if (!button) return;
+
+  const view = button.dataset.goView;
+
+  if (button.dataset.projectId) {
+    state.activeProject = button.dataset.projectId;
+  }
+
+  setActiveView(view);
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
 function setActiveView(view) {
   state.activeView = view;
 
@@ -322,7 +383,13 @@ function setActiveView(view) {
     panel.classList.toggle("is-active", panel.dataset.viewPanel === view);
   });
 
+  if (view === "home") renderHome();
   if (view === "today") renderTodayView();
+  if (view === "inbox") {
+    renderProjectOptions();
+    elements.projectFilterSelect.value = state.activeProject;
+    renderItems();
+  }
   if (view === "projects") renderProjects();
   if (view === "week") renderWeekView();
   if (view === "stats") renderStats();
@@ -818,6 +885,7 @@ function render() {
   renderProjectOptions();
   renderTagOptions();
   renderSummary();
+  renderHome();
   renderItems();
   renderTodayView();
   renderProjects();
@@ -937,6 +1005,150 @@ function renderSummary() {
   ).length;
 }
 
+
+function renderHome() {
+  if (!elements.homeDateText) return;
+
+  const today = new Date();
+  const todayKey = getDateKey(today);
+
+  elements.homeDateText.textContent = new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "long",
+  }).format(today);
+
+  const urgentTasks = state.items
+    .filter(
+      (item) =>
+        item.type === "todo" &&
+        !item.completed &&
+        item.dueDate &&
+        item.dueDate <= todayKey,
+    )
+    .sort(
+      (a, b) =>
+        compareOverdueStatus(a, b) ||
+        compareDueDate(a, b) ||
+        comparePriority(a, b) ||
+        compareCreatedAt(a, b),
+    )
+    .slice(0, 5);
+
+  elements.homeTaskList.replaceChildren();
+
+  urgentTasks.forEach((item) => {
+    elements.homeTaskList.append(createItemFragment(item, { compact: true }));
+  });
+
+  elements.homeTaskEmpty.hidden = urgentTasks.length > 0;
+
+  renderHomeProjects();
+  renderHomeWeekPreview();
+}
+
+function renderHomeProjects() {
+  elements.homeProjectList.replaceChildren();
+
+  const projects = state.projects
+    .map((project) => {
+      const todos = state.items.filter(
+        (item) => item.projectId === project.id && item.type === "todo",
+      );
+      const completed = todos.filter((item) => item.completed).length;
+      const rate = todos.length ? Math.round((completed / todos.length) * 100) : 0;
+
+      return {
+        project,
+        todos,
+        completed,
+        rate,
+      };
+    })
+    .sort((a, b) => {
+      const aRemaining = a.todos.length - a.completed;
+      const bRemaining = b.todos.length - b.completed;
+      return bRemaining - aRemaining || a.project.name.localeCompare(b.project.name, "ko");
+    })
+    .slice(0, 4);
+
+  elements.homeProjectEmpty.hidden = projects.length > 0;
+
+  projects.forEach(({ project, todos, completed, rate }) => {
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "home-project-card";
+    card.dataset.goView = "inbox";
+    card.dataset.projectId = project.id;
+
+    const heading = document.createElement("div");
+    heading.className = "home-project-card-heading";
+
+    const titleWrap = document.createElement("div");
+    const title = document.createElement("h3");
+    title.textContent = project.name;
+    const meta = document.createElement("small");
+    meta.textContent = `완료 ${completed} / ${todos.length}`;
+    titleWrap.append(title, meta);
+
+    const rateText = document.createElement("strong");
+    rateText.textContent = `${rate}%`;
+    heading.append(titleWrap, rateText);
+
+    const track = document.createElement("div");
+    track.className = "progress-track";
+    const fill = document.createElement("div");
+    fill.className = "progress-fill";
+    fill.style.width = `${rate}%`;
+    track.append(fill);
+
+    card.append(heading, track);
+    elements.homeProjectList.append(card);
+  });
+}
+
+function renderHomeWeekPreview() {
+  elements.homeWeekPreview.replaceChildren();
+
+  const start = getStartOfWeek(new Date());
+
+  for (let index = 0; index < 7; index += 1) {
+    const date = addDays(start, index);
+    const dateKey = getDateKey(date);
+    const count = state.items.filter(
+      (item) =>
+        item.type === "todo" &&
+        !item.completed &&
+        item.dueDate === dateKey,
+    ).length;
+
+    const day = document.createElement("button");
+    day.type = "button";
+    day.className = "home-week-day";
+    day.dataset.goView = "week";
+    day.classList.toggle("is-today", dateKey === getDateKey(new Date()));
+
+    const weekday = document.createElement("strong");
+    weekday.textContent = new Intl.DateTimeFormat("ko-KR", {
+      weekday: "short",
+    }).format(date);
+
+    const dateText = document.createElement("span");
+    dateText.textContent = new Intl.DateTimeFormat("ko-KR", {
+      month: "numeric",
+      day: "numeric",
+    }).format(date);
+
+    const countText = document.createElement("b");
+    countText.textContent = count;
+
+    day.append(weekday, dateText, countText);
+    elements.homeWeekPreview.append(day);
+  }
+}
+
+
 function renderItems() {
   const items = getVisibleItems();
   elements.itemList.replaceChildren();
@@ -953,7 +1165,7 @@ function renderItems() {
 
   if (state.items.length === 0) {
     emptyTitle.textContent = "아직 저장된 항목이 없습니다.";
-    emptyDescription.textContent = "위 입력창에 첫 항목을 추가해 보세요.";
+    emptyDescription.textContent = "홈에서 첫 항목을 추가해 보세요.";
   } else {
     emptyTitle.textContent = "조건에 맞는 항목이 없습니다.";
     emptyDescription.textContent = "필터, 프로젝트, 태그 또는 검색어를 바꿔 보세요.";
@@ -1528,83 +1740,6 @@ function formatHistoryDate(isoString) {
   }).format(new Date(isoString));
 }
 
-function exportData() {
-  const payload = {
-    version: 8,
-    exportedAt: new Date().toISOString(),
-    items: state.items,
-    projects: state.projects,
-    completions: state.completions,
-  };
-
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {
-    type: "application/json",
-  });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-
-  anchor.href = url;
-  anchor.download = `lifeos-v8-${getDateKey(new Date())}.json`;
-  anchor.click();
-
-  URL.revokeObjectURL(url);
-}
-
-async function importData(event) {
-  const [file] = event.target.files;
-  if (!file) return;
-
-  try {
-    const text = await file.text();
-    const parsed = JSON.parse(text);
-
-    const importedItems = Array.isArray(parsed)
-      ? parsed
-      : parsed.items;
-
-    if (!Array.isArray(importedItems)) {
-      throw new Error("지원하지 않는 파일 형식입니다.");
-    }
-
-    const importedProjects = Array.isArray(parsed.projects)
-      ? parsed.projects
-      : [];
-
-    const importedCompletions = Array.isArray(parsed.completions)
-      ? parsed.completions
-      : [];
-
-    const replaceExisting = window.confirm(
-      "확인을 누르면 기존 데이터를 교체하고, 취소를 누르면 기존 데이터에 합칩니다.",
-    );
-
-    const normalizedItems = importedItems.map(normalizeItem).filter((item) => item.content);
-    const normalizedProjects = importedProjects.map(normalizeProject).filter((project) => project.name);
-    const normalizedCompletions = importedCompletions.map(normalizeCompletion);
-
-    state.items = replaceExisting
-      ? normalizedItems
-      : mergeById(state.items, normalizedItems);
-
-    state.projects = replaceExisting
-      ? normalizedProjects
-      : mergeById(state.projects, normalizedProjects);
-
-    state.completions = replaceExisting
-      ? normalizedCompletions
-      : mergeById(state.completions, normalizedCompletions);
-
-    saveItems();
-    saveProjects();
-    saveCompletions();
-    render();
-  } catch (error) {
-    console.error(error);
-    window.alert("가져오기에 실패했습니다. 올바른 JSON 파일인지 확인해 주세요.");
-  } finally {
-    event.target.value = "";
-  }
-}
 
 function mergeById(currentItems, importedItems) {
   const byId = new Map(currentItems.map((item) => [item.id, item]));
